@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101411" />
+    <meta
+      name="description"
+      content="三国 · 夜议，AgentScope 驱动的 AI 狼人杀。入席、推理，在谎言中寻找真相。"
+    />
+    <title>三国 · 夜议 | AI 狼人杀</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="三国夜议首页"
+        ><span class="brand-seal">夜</span
+        ><span>三国 <b>·</b> 夜议<small>NIGHT COUNCIL</small></span></a
+      >
+      <nav aria-label="主导航">
+        <button id="nav-game" class="nav-link active">议事厅</button
+        ><button id="nav-rules" class="nav-link">玩法手册</button
+        ><button id="nav-settings" class="nav-link">
+          <span class="settings-icon">⚙</span> 模型设置
+        </button>
+      </nav>
+      <div class="connection"><i></i><span>本地议事厅</span></div>
+    </header>
+    <main id="app">
+      <div class="loading-page">
+        <span class="spinner"></span> 正在点亮议事厅…
+      </div>
+    </main>
+    <footer class="site-footer">
+      <span>以三国为名，以推理为局。</span
+      ><span>AGENTSCOPE <i>✦</i> AI SOCIAL DEDUCTION</span>
+    </footer>
+    <div id="toast" role="status" aria-live="polite" hidden></div>
+    <dialog
+      id="rules-dialog"
+      class="modal wide-modal"
+      aria-labelledby="rules-title"
+    >
+      <div class="modal-heading">
+        <div>
+          <span class="eyebrow">THE RULES</span>
+          <h2 id="rules-title">先识规则，再辨人心。</h2>
+        </div>
+        <button class="icon-button close-dialog" aria-label="关闭玩法手册">
+          ×
+        </button>
+      </div>
+      <p class="muted">
+        人物气质来自三国，身份与技能遵循本局狼人杀规则。以下为本作采用的明确变体，无警长、无守卫。
+      </p>
+      <div class="rule-decks">
+        <div>
+          <b>九人 · 预女猎</b
+          ><span>3 狼人 / 3 平民 / 预言家 / 女巫 / 猎人</span>
+        </div>
+        <div>
+          <b>六人 · 初识局</b><span>2 狼人 / 2 平民 / 预言家 / 女巫</span>
+        </div>
+      </div>
+      <div id="role-guide" class="role-guide"></div>
+      <div class="rule-section">
+        <h3>01 / 昼夜循环</h3>
+        <p>
+          狼人先秘密协商、各自封存刀票，只可选非狼玩家；多数票确定刀口，平票取较小座号。预言家查验一位其他存活玩家的阵营，女巫决定用药。夜间行动完成后统一结算，被刀或被毒者当夜仍可行动。
+        </p>
+        <p>
+          天亮后轮换起始座次，每人先发言一次，再进行一轮回应与对质，让先发言者也能回答后续指控。随后封存选票，全部提交才公布票型，可弃票，不可自投。最高票平票者各辩论一次，由其余存活玩家在平票者中复投；再平票或全弃票，则无人出局。
+        </p>
+      </div>
+      <div class="rule-section">
+        <h3>02 / 技能与遗言</h3>
+        <p>
+          女巫解药、毒药各一次，同夜只能用一种；仅首夜可以自救。解药用尽后不再获知刀口，解药不解毒。猎人被狼刀或放逐时可以开枪，也可以放弃；中毒时不能开枪，同中刀毒视为中毒。首夜出局与被放逐者拥有遗言，其他夜晚死亡和被枪带走者没有遗言。
+        </p>
+      </div>
+      <div class="rule-section">
+        <h3>03 / 胜负与视角</h3>
+        <p>
+          全部狼人出局，好人获胜。全部平民或全部神职出局，狼人获胜（屠边）。死亡技能与遗言处理完毕再判胜；同批全部出局或超过
+          20 轮判平。狼人人数达到好人人数不会直接判胜。
+        </p>
+        <p>
+          真人只能看到自己应知的消息，出局后仍保持受限视角，终局才解锁全知复盘。AI
+          观战从开局即为上帝视角，不能中途转真人。练习模式为有限策略机器人，真实模型模式才会调用
+          LLM，并产生供应商费用。
+        </p>
+      </div>
+      <p class="source-note">
+        参考
+        <a
+          href="https://www.gokids.com.tw/tsaiss/gokids/rules/werewolves_rules_cns-1.pdf"
+          target="_blank"
+          rel="noreferrer"
+          >《米勒山谷狼人》规则</a
+        >
+        与
+        <a
+          href="https://www.langrensha.net/strategy/2022071902.html"
+          target="_blank"
+          rel="noreferrer"
+          >女巫角色说明</a
+        >。不同版本存在差异，本作以本页规则为准。
+      </p>
+      <button class="button primary close-dialog full">了解，入席</button>
+    </dialog>
+    <dialog id="settings-dialog" class="modal" aria-labelledby="settings-title">
+      <div class="modal-heading">
+        <div>
+          <span class="eyebrow">MODEL CONNECTION</span>
+          <h2 id="settings-title">让每个角色，有自己的智慧。</h2>
+        </div>
+        <button class="icon-button close-dialog" aria-label="关闭模型设置">
+          ×
+        </button>
+      </div>
+      <p class="muted">
+        支持 OpenAI 兼容接口。座位配置优先于身份配置，身份配置优先于全局配置。
+      </p>
+      <form id="settings-form">
+        <label
+          >配置范围<select id="config-scope">
+            <option value="global">全局默认 · 所有 AI</option>
+            <optgroup label="按狼人杀身份">
+              <option value="role:wolf">狼人</option>
+              <option value="role:villager">平民</option>
+              <option value="role:seer">预言家</option>
+              <option value="role:witch">女巫</option>
+              <option value="role:hunter">猎人</option>
+            </optgroup>
+            <optgroup label="按座位" id="seat-options"></optgroup></select
+        ></label>
+        <label
+          >API Base URL<input
+            id="config-url"
+            type="url"
+            placeholder="https://api.deepseek.com"
+            required
+            autocomplete="off"
+        /></label>
+        <label
+          >模型名称<input
+            id="config-model"
+            placeholder="deepseek-flash"
+            required
+            maxlength="150"
+            autocomplete="off"
+        /></label>
+        <label
+          >API key <span id="key-status" class="field-status"></span
+          ><input
+            id="config-key"
+            type="password"
+            placeholder="填写密钥，或留空保留当前值"
+            maxlength="1000"
+            autocomplete="new-password"
+            spellcheck="false"
+        /></label>
+        <label for="config-decision">决策方式</label>
+        <select id="config-decision">
+          <option value="deep">深度博弈（默认）：独立评估，再组织发言</option>
+          <option value="quick">快速模式：单次生成，推理能力较弱</option>
+        </select>
+        <p class="security-note">
+          深度博弈在 DeepSeek 官方接口启用高强度思考，最多 16K
+          输出预算；其他兼容模型使用两阶段决策。发言通常调用两次，耗时与费用更高。这里只展示结论摘要。
+        </p>
+        <p class="security-note">
+          密钥仅在服务端内存使用，不写入游戏存档或浏览器存储。更换服务地址时须重新填写密钥。服务重启后，单独设置的密钥需重填。
+        </p>
+        <div id="model-result" class="model-result" aria-live="polite"></div>
+        <div class="modal-actions">
+          <button type="button" id="clear-config" class="button ghost">
+            清除配置</button
+          ><button type="button" id="test-config" class="button secondary">
+            保存并测试</button
+          ><button type="submit" class="button primary">保存设置</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog
+      id="confirm-dialog"
+      class="modal small-modal"
+      aria-labelledby="confirm-title"
+    >
+      <h2 id="confirm-title">重新入席？</h2>
+      <p class="muted">
+        当前对局将被新的一局替换。你可以先下载复盘，保存已经发生的故事。
+      </p>
+      <div class="modal-actions">
+        <button class="button secondary close-dialog">留在此局</button
+        ><button id="confirm-new" class="button primary">返回开局</button>
+      </div>
+    </dialog>
+    <dialog
+      id="debug-dialog"
+      class="modal small-modal"
+      aria-labelledby="debug-title"
+    >
+      <span class="eyebrow">PRIVATE OBSERVATORY</span>
+      <h2 id="debug-title">进入 AI 调试视角</h2>
+      <p class="muted">
+        你将看到各 AI
+        的决策摘要、证据、伪装计划和私人记忆，这可能揭示隐藏身份。本局会保留「调试局」标记，关闭侧栏也不会恢复普通真人局。
+      </p>
+      <p class="muted">
+        模型之间仍保持原有信息隔离。这里显示简短的决策说明，不展示原始内部思维链。
+      </p>
+      <div class="modal-actions">
+        <button class="button secondary close-dialog">保持正常对局</button
+        ><button id="confirm-debug" class="button primary">开启调试局</button>
+      </div>
+    </dialog>
+  </body>
+</html>

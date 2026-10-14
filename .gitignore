@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.local/
+.env
+.env.*
+!.env.example
+deepseek配置.txt
+*.sqlite3
+*.sqlite3-*
+*.log
+node_modules/
+test-results/
+playwright-report/

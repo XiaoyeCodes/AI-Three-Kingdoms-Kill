@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" role="img" aria-labelledby="title desc">
+  <title id="title">三国 · 夜议 — Night Council</title>
+  <desc id="desc">墨绿与暗金的月夜，三国人物与独立智能体共同参与一场关于信任、证据与伪装的狼人杀。</desc>
+  <defs>
+    <radialGradient id="glow"><stop stop-color="#43513a" stop-opacity=".7"/><stop offset="1" stop-color="#101611" stop-opacity="0"/></radialGradient>
+    <linearGradient id="gold"><stop stop-color="#e3d0a0"/><stop offset="1" stop-color="#9a8358"/></linearGradient>
+  </defs>
+  <rect width="1280" height="360" rx="20" fill="#101611"/>
+  <rect x="18" y="18" width="1244" height="324" rx="12" fill="none" stroke="#b79b62" stroke-opacity=".24"/>
+  <circle cx="1030" cy="180" r="230" fill="url(#glow)"/>
+  <g fill="none" stroke="#c7b07d" stroke-opacity=".18"><circle cx="1020" cy="180" r="115"/><circle cx="1020" cy="180" r="142"/><path d="M780 180h450M1020 38v284"/></g>
+  <circle cx="1020" cy="173" r="57" fill="url(#gold)"/>
+  <circle cx="1043" cy="150" r="53" fill="#182019"/>
+  <g fill="#c8b386" font-family="Georgia, 'Noto Serif SC', 'Microsoft YaHei', serif" font-size="21" text-anchor="middle">
+    <text x="1020" y="55">谋</text><text x="1145" y="119">隐</text><text x="1145" y="256">鉴</text>
+    <text x="1020" y="322">弈</text><text x="897" y="256">诡</text><text x="897" y="119">信</text>
+  </g>
+  <text x="76" y="83" fill="#c2aa76" font-family="Arial, sans-serif" font-size="13" letter-spacing="5">AGENTSCOPE · AI SOCIAL DEDUCTION</text>
+  <text x="70" y="169" fill="#eee8d9" font-family="Georgia, 'Noto Serif SC', 'Microsoft YaHei', serif" font-size="62" letter-spacing="8">三国 · 夜议</text>
+  <text x="76" y="210" fill="#c8b386" font-family="Arial, sans-serif" font-size="16" letter-spacing="9">NIGHT COUNCIL</text>
+  <path d="M76 240h64" stroke="#c8b386"/>
+  <text x="76" y="285" fill="#aaa99b" font-family="'Microsoft YaHei', sans-serif" font-size="19" letter-spacing="2">一席九人，各怀其心。让证据决定你相信谁。</text>
+</svg>
