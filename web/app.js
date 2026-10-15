@@ -76,19 +76,6 @@ let toastTimer,
 let readingDelay = Number(sessionStorage.getItem("readingDelay") ?? 3);
 let activeRequest = 0;
 
-function assessmentHtml(trace) {
-  if (!trace?.requests) return "";
-  const native = trace.requests.some((r) => r.native_thinking);
-  const known = trace.requests.filter((r) =>
-    Number.isFinite(r.reasoning_tokens),
-  );
-  const tokens = known.reduce((n, r) => n + r.reasoning_tokens, 0);
-  const a = trace.assessment;
-  const vote = a?.vote_review;
-  const voteHtml = vote ? `<details class="debug-evidence" open><summary>独立投票复核</summary><p><b>证据来源与重复指控</b><br>${escapeHtml(vote.source_audit)}</p><p><b>最新辩护</b><br>${escapeHtml(vote.latest_defense)}</p>${vote.candidates.map(c => `<p><b>${c.target === null ? "弃票" : c.target + "号"}</b><br>支持：${escapeHtml(c.case_for)}<br>反对／代价：${escapeHtml(c.case_against)}</p>`).join("")}<p><b>最终取舍</b><br>${escapeHtml(vote.decision_reason)}</p><p><b>改票条件</b><br>${escapeHtml(vote.change_condition)}</p></details>` : "";
-  return `<div class="debug-stats"><span>${trace.decision_mode === "deep" ? "深度博弈" : trace.decision_mode === "demo" ? "练习策略" : "快速模式"}</span><span>实际耗时 <b>${trace.duration_seconds ?? 0}s</b></span><span>请求 <b>${trace.requests.length}</b> 次</span></div><p class="security-note">${native ? "已请求供应商思考模式" : "未请求供应商原生思考"}${known.length ? ` · 已报告推理 ${tokens} tokens` : " · 供应商未报告推理 token 数"}</p>${voteHtml}${a ? `<h4>判断变化</h4><p class="debug-prose">${escapeHtml(a.revision)}</p><details class="debug-evidence"><summary>各席嫌疑判断 · 主观估计</summary>${a.suspicions.map((s) => `<p><b>${s.seat}号 · ${Math.round(s.wolf_probability * 100)}%</b> ${escapeHtml(s.note)}<br>依据类型 ${escapeHtml(s.basis)} · 引用 ${s.evidence_ids.map((x) => "#" + escapeHtml(x)).join("、") || "无"}</p>`).join("")}</details><details class="debug-evidence"><summary>备选解释与不确定性</summary>${a.alternatives.map((x) => `<p>${escapeHtml(x.hypothesis)}<br><b>不确定性</b> ${escapeHtml(x.weakness)}</p>`).join("")}</details>` : ""}`;
-}
-
 async function api(path, body) {
   const response = await fetch("/api/" + path, {
     method: body === undefined ? "GET" : "POST",
@@ -148,6 +135,7 @@ function art() {
   return `<div class="hero-art" aria-label="月下七张身份牌的抽象插画"><div class="art-grid"></div><span class="art-caption">THE NIGHT KNOWS</span><span class="art-coord">月隐 · 人心</span><div class="art-ring"></div><div class="art-ring inner"></div><div class="moon"></div>${["谋", "隐", "鉴", "疑", "弈", "诡", "信"].map((x, i) => `<span class="art-seat s${i + 1}">${x}</span>`).join("")}<span class="art-bottom">一席九人 · 各怀其心</span></div>`;
 }
 function renderLobby() {
+  markRoute("new");
   showingLobby = true;
   $("#app").innerHTML =
     `<section class="lobby"><div class="hero"><div class="hero-copy"><span class="eyebrow">A GAME OF TRUST & DECEPTION</span><h1>入夜之前，<br>没有人值得<em>全信。</em></h1><p>当三国群雄隐入狼人之夜，每句证词都可能是一场布局。<br>与 AI 同席，在交锋与沉默之间，找到真相。</p><div class="hero-meta"><span>独立人格</span><span>私密协商</span><span>真实推理</span></div></div>${art()}</div>
@@ -184,7 +172,7 @@ function renderLobby() {
   $("#lobby-rules").onclick = () => openDialog("#rules-dialog");
   $("#resume-game")?.addEventListener("click", () => {
     showingLobby = false;
-    renderGame();
+    navigate("game");
   });
   $("#start-game").onclick = startGame;
 }
@@ -204,7 +192,7 @@ async function startGame() {
     toast(error.message);
   } finally {
     busy = false;
-    showingLobby ? renderLobby() : renderGame();
+    showingLobby ? renderLobby() : navigate("game");
   }
 }
 function roleCard() {
@@ -235,96 +223,10 @@ function roleCard() {
 }
 
 function debugPanel() {
-  if (!game.debug_available)
-    return `<section class="panel debug-panel"><div class="panel-header"><h2>AI 观察室</h2><span class="private-tag">隔离</span></div><div class="debug-body"><p class="muted">跨轮证据已归档，AI 可以回查旧发言。查看其他角色的私有决策会揭示身份和策略。</p><button id="open-debug-gate" class="button secondary full" ${busy ? "disabled" : ""}>开启调试局</button><p class="security-note">也可在 AI 观战或终局直接查看。调试记录不会传给其他模型。</p></div></section>`;
-  const traces = game.debug_traces || [];
-  const filtered =
-    debugSeat === "latest"
-      ? traces
-      : traces.filter((t) => t.actor === Number(debugSeat));
-  const trace =
-    filtered.find((t) => String(t.id) === debugTraceId) || filtered.at(-1);
-  const meta = trace?.memory;
-  const evidence =
-    trace?.evidence_ids
-      .map((id) => game.events.find((e) => e.id === id))
-      .filter(Boolean) || [];
-  const seat = debugSeat === "latest" ? trace?.actor : Number(debugSeat);
-  return `<section class="panel debug-panel"><div class="panel-header"><h2>AI 观察室 ${game.debug_mode ? "· 调试局" : ""}</h2><button id="toggle-debug" class="text-button" aria-expanded="${debugOpen}">${debugOpen ? "收起" : "展开"}</button></div>${
-    debugOpen
-      ? `<div class="debug-body"><p class="debug-disclaimer">决策摘要与证据 · 非原始内部思维链<br>仅供你观察，不会进入其他 AI 的上下文。</p><label>观察角色<select id="debug-seat"><option value="latest">跟随最新行动</option>${game.players
-          .filter((p) => p.id !== game.human)
-          .map(
-            (p) =>
-              `<option value="${p.id}" ${String(p.id) === debugSeat ? "selected" : ""}>${p.id}号 ${p.name} · ${roleNames[p.role] || "未知"}</option>`,
-          )
-          .join("")}</select></label>
-    ${
-      trace
-        ? `<label>决策记录<select id="debug-trace"><option value="">最新一条</option>${filtered
-            .toReversed()
-            .map(
-              (t) =>
-                `<option value="${t.id}" ${String(t.id) === debugTraceId ? "selected" : ""}>第${t.day}${t.phase === "night" ? "夜" : "天"} · ${t.actor}号 · #${t.id}</option>`,
-            )
-            .join(
-              "",
-            )}</select></label><div class="debug-actor"><strong>${trace.actor}号 · ${game.players[trace.actor - 1].name}</strong><span>${escapeHtml(trace.model)}</span></div>${assessmentHtml(trace)}<h4>决策摘要</h4><p class="debug-prose">${escapeHtml(trace.summary)}</p>${trace.intent ? `<h4>行动意图</h4><p class="debug-prose">${escapeHtml(trace.intent)}</p>` : ""}<div class="debug-stats"><span>永久档案 <b>${meta.archive_records}</b></span><span>本次原文 <b>${meta.exact_records}</b></span><span>主动回查 <b>${meta.retrieved_ids.length}</b></span></div><h4>引用证据</h4>${evidence.length ? evidence.map((e) => `<details class="debug-evidence"><summary>#${e.id} · 第${e.day}轮 · ${escapeHtml(e.title)}</summary><p>${escapeHtml(e.text)}</p></details>`).join("") : '<p class="security-note">未引用具体消息编号；摘要只是该 AI 的判断。</p>'}<details class="debug-evidence"><summary>私有策略账本 · 不广播</summary><p><b>身份说辞</b><br>${escapeHtml(trace.notebook.cover_story || "尚未记录")}<br><b>后续策略</b><br>${escapeHtml(trace.notebook.plan || "尚未记录")}</p>${Object.entries(
-            trace.notebook.beliefs || {},
-          )
-            .map(([id, b]) => `<p><b>${id}号</b> ${escapeHtml(b)}</p>`)
-            .join("")}</details>`
-        : '<p class="muted">还没有 AI 决策记录。推进一项 AI 行动后查看。</p>'
-    }
-    ${seat ? `<div class="memory-search"><h4>检索 ${seat} 号的完整记忆</h4><label class="sr-only" for="memory-query">记忆关键词</label><input id="memory-query" placeholder="输入人名、身份或原话" maxlength="100" value="${escapeHtml(memoryQuery)}"><div class="memory-search-row"><label class="sr-only" for="memory-day">记忆轮次</label><select id="memory-day"><option value="0">全部轮次</option>${Array.from({ length: game.day }, (_, i) => `<option value="${i + 1}" ${memoryDay === String(i + 1) ? "selected" : ""}>第 ${i + 1} 轮</option>`).join("")}</select><button id="search-memory" class="button secondary" ${busy ? "disabled" : ""}>查原文</button></div>${memoryResult?.actor === seat ? `<p class="security-note">此角色共 ${memoryResult.total} 条记忆，匹配 ${memoryResult.matched} 条${memoryResult.limited ? "，先显示前100条，请缩小筛选范围" : ""}。</p><div class="memory-results">${memoryResult.records.map((r) => `<details class="debug-evidence"><summary>#${escapeHtml(r.id)} · 第${r.day}轮 · ${escapeHtml(r.speaker)}</summary><p>${escapeHtml(r.text)}</p></details>`).join("")}</div>` : ""}</div>` : ""}</div>`
-      : '<div class="debug-body"><p class="security-note">完整原文 + 跨轮索引 + 私有策略账本。展开查看摘要、伪装计划及证据。</p></div>'
-  }</section>`;
+  return liveReviewPanel();
 }
-
 function bindDebug() {
-  $("#open-debug-gate")?.addEventListener("click", () => {
-    stopAuto();
-    openDialog("#debug-dialog");
-  });
-  $("#toggle-debug")?.addEventListener("click", () => {
-    debugOpen = !debugOpen;
-    renderGame();
-  });
-  $("#debug-seat")?.addEventListener("change", (e) => {
-    debugSeat = e.target.value;
-    debugTraceId = "";
-    memoryResult = null;
-    renderGame();
-  });
-  $("#debug-trace")?.addEventListener("change", (e) => {
-    debugTraceId = e.target.value;
-    renderGame();
-  });
-  $("#memory-query")?.addEventListener("input", (e) => {
-    memoryQuery = e.target.value;
-  });
-  $("#memory-day")?.addEventListener("change", (e) => {
-    memoryDay = e.target.value;
-  });
-  $("#search-memory")?.addEventListener("click", async () => {
-    const traces = game.debug_traces || [];
-    const filtered =
-      debugSeat === "latest"
-        ? traces
-        : traces.filter((t) => t.actor === Number(debugSeat));
-    const trace =
-      filtered.find((t) => String(t.id) === debugTraceId) || filtered.at(-1);
-    const seat = debugSeat === "latest" ? trace?.actor : Number(debugSeat);
-    if (!seat) return;
-    try {
-      memoryResult = await api(
-        `memory/${seat}?q=${encodeURIComponent(memoryQuery)}&day=${Number(memoryDay)}`,
-      );
-      renderGame();
-    } catch (e) {
-      toast(e.message);
-    }
-  });
+  bindLiveReview();
 }
 
 async function unlockDebug() {
@@ -341,35 +243,33 @@ async function unlockDebug() {
   }
 }
 function roster() {
-  return `<section class="panel roster-panel"><div class="panel-header"><h2>席上众人</h2><small>${game.alive_count} / ${game.players.length} 存活</small></div><div class="roster">${game.players.map((p) => `<div class="player-card ${p.alive ? "" : "dead"} ${p.role === "wolf" ? "wolf-known" : ""} ${game.pending?.actor === p.id ? "current" : ""}" aria-label="${p.id}号${p.name}，${p.alive ? "存活" : "出局"}，${p.role ? roleNames[p.role] : "身份未知"}"><span class="seat-no">${String(p.id).padStart(2, "0")}</span>${p.id === game.human ? '<span class="you">你</span>' : ""}<div class="avatar">${p.name.slice(-1)}</div><div class="player-name">${p.name}</div><div class="player-role">${p.role ? roleNames[p.role] : "身份未明"}${p.alive ? "" : " · 出局"}</div></div>`).join("")}</div><div class="roster-note">${game.omniscient ? "◇ 全知视角 · 身份已公开" : "◇ 迷雾中的身份由服务端隐藏"}<br>高亮边框标记当前公开行动者。</div></section>`;
+  return `<section class="panel roster-panel"><div class="panel-header"><h2>席上众人</h2><small>${game.alive_count} / ${game.players.length} 存活</small></div><div class="roster">${game.players.map((p) => `<div class="player-card ${p.alive ? "" : "dead"} ${p.role === "wolf" ? "wolf-known" : ""} ${game.pending?.actor === p.id ? "current" : ""}" aria-label="${p.id}号${p.name}，${p.alive ? "存活" : "出局"}，${p.role ? roleNames[p.role] : "身份未知"}"><span class="seat-no">${String(p.id).padStart(2, "0")}</span>${p.id === game.human ? '<span class="you">你</span>' : ""}${avatar(p.id, "roster-avatar", p.name)}<div class="player-name">${p.name}</div><div class="player-role">${p.role ? roleNames[p.role] : "身份未明"}${p.alive ? "" : " · 出局"}</div></div>`).join("")}</div><div class="roster-note">${game.omniscient ? "◇ 全知视角 · 身份已公开" : "◇ 迷雾中的身份由服务端隐藏"}<br>高亮边框标记当前公开行动者。</div></section>`;
 }
-function eventHtml(e) {
+function eventHtml(e, players = game.players, inspect = true) {
   const isPrivate = !e.public;
   let text = e.text;
   if (e.kind === "action" && e.data)
     text = `${actionNames[e.data.action] || e.data.action}${e.data.target ? " · " + e.data.target + "号" : ""}`;
-  return `<article class="event ${e.kind}"><div class="event-head"><span class="event-icon">${e.actor ? game.players[e.actor - 1].name.slice(-1) : "◇"}</span><span class="event-name">${escapeHtml(e.title)}</span>${isPrivate ? '<span class="private-tag">私密</span>' : ""}<span class="event-time">${e.day ? `第 ${e.day} ${e.phase === "night" ? "夜" : "天"}` : "入席"} · ${String(e.id).padStart(2, "0")}</span></div><p class="event-text">${escapeHtml(text)}</p>${
+  return `<article class="event ${e.kind}" data-event-id="${e.id}"><div class="event-head">${e.actor ? avatar(e.actor, "event-avatar") : '<span class="event-icon">◇</span>'}<span class="event-name">${escapeHtml(e.title)}</span>${isPrivate ? '<span class="private-tag">私密</span>' : ""}<span class="event-time">${e.day ? `第 ${e.day} ${e.phase === "night" ? "夜" : "天"}` : "入席"} · ${String(e.id).padStart(2, "0")}</span></div><p class="event-text">${escapeHtml(text)}</p>${
     e.kind === "ballot" && e.data
       ? `<div class="ballots">${Object.entries(e.data.ballots)
-          .map(
-            ([a, t]) => `<span class="vote-chip">${a} → ${t || "弃票"}</span>`,
-          )
+          .map(([a, t]) => voteChipHtml(e, a, t))
           .join("")}</div>`
       : ""
-  }</article>`;
+  }${inspect && game.debug_available && game.debug_traces?.some((t) => t.event_id === e.id) ? `<button class="text-button inspect-decision" data-observe="${e.id}">◎ 观察决策</button>` : ""}</article>`;
 }
 function feedHtml() {
   const events = game.events.filter(
     (e) => tab === "all" || (tab === "public" ? e.public : !e.public),
   );
   return events.length
-    ? events.map(eventHtml).join("")
+    ? events.map((e) => eventHtml(e)).join("")
     : '<div class="feed-empty">此刻，寂静也是线索。<br>属于这个频道的消息将出现在这里。</div>';
 }
 function actionHtml() {
   const pending = game.pending;
   if (game.winner)
-    return `<div class="action-title">✦ 故事已落幕，真相已揭晓。</div><div class="wait-line"><span class="wait-copy">切换「全局」查看私聊和夜间行动。</span><button class="button secondary" id="replay-action">下载复盘 ↗</button></div>`;
+    return `<div class="action-title">✦ 故事已落幕，真相已揭晓。</div><div class="wait-line"><span class="wait-copy">切换「全局」查看私聊和夜间行动。</span><button class="button secondary" id="replay-action">进入复盘 ↗</button></div>`;
   let error = game.error
     ? `<div class="error-box">${escapeHtml(game.error)}<br><button id="error-settings" class="text-button">检查模型设置</button>　<button id="switch-practice" class="text-button">改用练习模式继续</button></div>`
     : "";
@@ -402,6 +302,7 @@ function actionHtml() {
   );
 }
 function renderGame() {
+  if (currentPage !== "game") return;
   if (!game) return renderLobby();
   const oldFeed = $("#feed");
   const scrollTop = oldFeed?.scrollTop || 0;
@@ -426,7 +327,7 @@ function renderGame() {
           ? 2
           : 1;
   $("#app").innerHTML =
-    `<section class="board"><div class="board-heading"><div class="board-title"><div><span class="eyebrow">${phase === "night" ? "NIGHTFALL" : phase === "finished" ? "THE TRUTH" : "THE COUNCIL"}</span><h1>第 ${game.day} ${phase === "night" ? "夜" : "天"} <span class="gold">·</span> ${phaseName}</h1></div><div class="game-badges"><span class="badge gold">${game.mode === "llm" ? "真实 LLM" : "练习模式"}</span><span class="badge">${game.human ? "真人入局" : "AI 观战"}</span></div></div><div class="board-actions"><button class="button ghost" id="new-game" ${busy ? "disabled" : ""}>重新开局</button><button class="button secondary" id="download-replay" ${busy ? "disabled" : ""}>↓ 复盘</button>${!game.winner ? `<button class="button ${auto ? "secondary" : "primary"}" id="auto-toggle" ${busy && !auto ? "disabled" : ""}>${auto ? "Ⅱ 暂停推进" : "▷ 自动推进"}</button>` : ""}</div></div>
+    `<section class="board"><div class="board-heading"><div class="board-title"><div><span class="eyebrow">${phase === "night" ? "NIGHTFALL" : phase === "finished" ? "THE TRUTH" : "THE COUNCIL"}</span><h1>第 ${game.day} ${phase === "night" ? "夜" : "天"} <span class="gold">·</span> ${phaseName}</h1></div><div class="game-badges"><span class="badge gold">${game.mode === "llm" ? "真实 LLM" : "练习模式"}</span><span class="badge">${game.human ? "真人入局" : "AI 观战"}</span></div></div><div class="board-actions"><button class="button ghost" id="new-game" ${busy ? "disabled" : ""}>重新开局</button><button class="button secondary" id="download-replay" ${busy ? "disabled" : ""}>复盘回看 ↗</button>${!game.winner ? `<button class="button ${auto ? "secondary" : "primary"}" id="auto-toggle" ${busy && !auto ? "disabled" : ""}>${auto ? "Ⅱ 暂停推进" : "▷ 自动推进"}</button>` : ""}</div></div>
   ${game.winner ? `<div class="result-banner"><div><span class="eyebrow">THE COUNCIL HAS SPOKEN</span><h2>${game.winner === "good" ? "长夜已尽 · 好人获胜" : game.winner === "wolf" ? "暗影得势 · 狼人获胜" : "未分高下 · 本局平局"}</h2><p>${escapeHtml(game.events.filter((e) => e.kind === "result").at(-1)?.text)} 所有身份与私密记录现已解锁。</p></div><span class="result-seal">终</span><button id="result-new" class="button primary">再赴一局 ↗</button></div>` : ""}
   <div class="board-layout">${roster()}<section class="panel conversation"><div class="phase-track">${["01 夜间行动", "02 天亮结算", "03 公开议事", "04 投票放逐"].map((t, i) => `<span class="${!game.winner && i === phaseIndex ? "active" : ""}">${t}</span>`).join("")}</div><div class="feed-header"><div class="feed-tabs"><button class="feed-tab ${tab === "public" ? "active" : ""}" data-tab="public">公共议事</button><button class="feed-tab ${tab === "private" ? "active" : ""}" data-tab="private">${game.human ? "私密情报" : "幕后行动"}</button>${game.omniscient ? `<button class="feed-tab ${tab === "all" ? "active" : ""}" data-tab="all">全局</button>` : ""}</div><span class="feed-meta">${game.events.length} 条已知记录</span></div><div id="feed" class="feed" role="log" aria-label="对局记录">${feedHtml()}</div><div class="action-area">${actionHtml()}</div></section><aside class="aside-stack">${roleCard()}<section class="panel notes-panel"><h3>局中锦囊</h3><p>${game.phase === "night" ? "夜间信息各有归属。查验只看阵营，刀口只告诉尚有解药的女巫，狼人协商仅在狼队中流转。" : "强势不等于可信，沉默也不等于心虚。留意角色声明与票型能否互相印证，再决定把信任交给谁。"}</p><div class="identity-divider"></div><div class="usage-row"><span>模型请求</span><strong>${game.usage.calls} 次</strong></div><div class="usage-row"><span>已报告用量</span><strong>${game.usage.tokens.toLocaleString()} tokens</strong></div><div class="usage-row"><span>存档</span><strong>每步自动保存</strong></div></section></aside></div></section>`;
   const feed = $("#feed");
@@ -470,8 +371,10 @@ function renderGame() {
     stopAuto();
     renderLobby();
   });
-  $("#download-replay").onclick = downloadReplay;
-  $("#replay-action")?.addEventListener("click", downloadReplay);
+  $("#download-replay").onclick = () => navigate("replay", game.id);
+  $("#replay-action")?.addEventListener("click", () =>
+    navigate("replay", game.id),
+  );
   $("#auto-toggle")?.addEventListener("click", toggleAuto);
   $("#step-action")?.addEventListener("click", () => step());
   $("#error-settings")?.addEventListener("click", showSettings);
@@ -719,7 +622,7 @@ $("#nav-settings").onclick = showSettings;
 $("#nav-game").onclick = () => {
   if (game) {
     showingLobby = false;
-    renderGame();
+    navigate("game");
   } else renderLobby();
 };
 $("#confirm-new").onclick = () => {
@@ -760,7 +663,7 @@ async function init() {
       setTimeout(init, 1500);
       return;
     }
-    game ? renderGame() : renderLobby();
+    routeFromLocation();
   } catch (e) {
     $("#app").innerHTML =
       '<div class="loading-page">服务连接失败，请确认启动窗口仍在运行。<button id="retry-load" class="button secondary">重新连接</button></div>';
@@ -768,4 +671,3 @@ async function init() {
     toast(e.message);
   }
 }
-init();

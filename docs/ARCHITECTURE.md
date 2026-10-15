@@ -64,13 +64,17 @@ night_start
 | POST /api/settings | 全局、角色、座位覆盖；保留或清除密钥 |
 | POST /api/test-model | 显式调用模型验证 JSON 连接 |
 | POST /api/practice | 明确切换当前局至练习模式 |
-| GET /api/replay | 下载当前视角或终局完整 JSON 复盘 |
+| GET /api/replay | 兼容原版当前视角 JSON 下载 |
+| GET /api/history | 当前会话逐局历史摘要 |
+| POST /api/history/{id}/resume | 保存当前局并恢复指定未结束局 |
+| GET /api/history/{id}/replay | 按 perspective / cursor 只读投影历史事件与决策 |
+| GET /api/history/{id}/memory/{actor} | 按 cursor / q / day 检索该角色当时收到的原文 |
 | POST /api/debug | 真人主动开启全知调试，永久标记本局；携带 game_id/version |
 | GET /api/memory/{seat} | 仅观战、终局、调试局可检索指定 AI 自己的原文档案 |
 
 同步请求由 FastAPI 的线程池执行，每局拥有独立 Lock。正在进行模型调用时重复请求返回 409；回合结束后的旧 version 也返回 409。不同会话的智能体和密钥互不共享。API 只允许本机 host，同源写请求验证 Origin 和自定义请求头，Cookie 设置 HttpOnly / SameSite=Strict。
 
-每步保存完整状态及事件接收者列表到 SQLite。重启时重新实例化智能体，再通过 MsgHub 按原接收者恢复记忆。API key 和 OpenAI 客户端不序列化；配置文件仅在启动时读取。持久化按操作系统文件权限保护，不宣称数据库加密。当前房间为每个浏览器会话保留一局，无账户和历史对局列表。
+每步保存完整状态及事件接收者列表到 SQLite。重启时重新实例化智能体，再通过 MsgHub 按原接收者恢复记忆。API key 和 OpenAI 客户端不序列化；配置文件仅在启动时读取。持久化按操作系统文件权限保护，不宣称数据库加密。`sessions` 保留当前选择，`games` 按 `(sid, game_id)` 保存全部对局；旧版本最后存档通过幂等迁移进入历史。复盘在 `replay.py` 中直接裁剪快照，不恢复智能体、不调用模型、不替换当前对局。角色身份、事件接收者、决策及证据在服务端按视角和时间点过滤；存活状态由历史死亡公告重建。尚无账户和跨设备同步。
 
 ## 实施目标与依赖
 

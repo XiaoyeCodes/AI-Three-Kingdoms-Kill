@@ -7,7 +7,7 @@
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)
 ![AgentScope](https://img.shields.io/badge/AgentScope-0.1.6-BDA56F?style=flat-square)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
-![Tests](https://img.shields.io/badge/local_tests-76_passed-526B46?style=flat-square)
+![Tests](https://img.shields.io/badge/local_tests-86_passed-526B46?style=flat-square)
 [![CI](https://github.com/XiaoyeCodes/AI-Three-Kingdoms-Kill/actions/workflows/tests.yml/badge.svg)](https://github.com/XiaoyeCodes/AI-Three-Kingdoms-Kill/actions/workflows/tests.yml)
 
 [快速开始](#快速开始) · [游戏截图](#游戏截图) · [AI 如何决策](#ai-如何决策) · [系统架构](#系统架构) · [完整使用指南](docs/USER_GUIDE.md)
@@ -22,15 +22,19 @@
 
 ## 游戏截图
 
-**入席 · 墨绿与暗金的议事厅**
+**首页 · 各怀其心，由你识破**
 
-![游戏首页与开局选项](docs/screenshots/lobby.png)
+![新版首页与人物头像](docs/screenshots/home-v2.jpg)
 
-**局中 · 真实模型对局与私人判断观察室**
+**历史 · 每一局都有迹可循**
 
-![真实模型协商与深度决策调试侧栏](docs/screenshots/deep-strategy-preview.png)
+![历史对局列表](docs/screenshots/history-v2.jpg)
 
-<sub>以上为实际网页截图。对局截图来自已完成的真实 DeepSeek 测试，展示私人协商、判断摘要和实际请求用量。人物与身份并非固定绑定；此截图早于最新的独立投票复核升级。</sub>
+**复盘 · 回到判断发生的那一刻**
+
+![时间轴复盘与角色决策观察室](docs/screenshots/replay-v2.jpg)
+
+<sub>以上为实际网页截图，使用独立验收数据库。复盘截图取自此前完成的真实 DeepSeek 六人对局；旧记录没有最新投票复核字段时，页面会明确提示。九位人物插画本地加载，性格与狼人杀身份分别分配。</sub>
 
 ## 有什么可玩
 
@@ -41,9 +45,10 @@
 | **各有性格的对手** | 九种表达与决策风格，支持游戏内伪装、悍跳、假查验与倒钩 |
 | **跨轮记忆** | 每人独立的完整档案、全轮索引、原文检索和私人策略账本 |
 | **独立投票复核** | 深度模式逐个比较候选人与弃票，检查反证、重复指控、最新辩护和改票条件 |
-| **旁栏调试** | 查看简短决策结论、引用证据、判断变化、实际耗时和用量；不向其他 AI 广播 |
+| **AI 观察室** | 判断 / 投票复核 / 证据 / 记忆四页，点击发言或选票关联决策；私有记录不向其他 AI 广播 |
 | **自由配置模型** | 全局 → 身份 → 座位三级覆盖，可让不同角色使用不同 API key 或模型 |
-| **随时停下与继续** | 单步 / 自动推进、独立阅读间隔、每步存档、刷新恢复、JSON 复盘导出 |
+| **首页与历史档案** | 继续未完对局、查看最近故事、筛选历史；新局保留旧局，随时恢复原回合 |
+| **逐步复盘** | 昼夜章节、时间轴、播放与暂停、公开 / 角色 / 全知视角；按当时信息回看与导出 |
 
 > 无密钥也能体验：选择 **练习模式**。这是明确标注的规则机器人，用来熟悉流程；真实语言博弈需配置 LLM。
 
@@ -72,7 +77,7 @@ uv pip install --python .venv -r requirements.lock.txt
 .venv/bin/python run.py
 ```
 
-打开 **[http://127.0.0.1:8765](http://127.0.0.1:8765)**，选择席位、棋局与对手，点击「入席，天黑请闭眼」。
+打开 **[http://127.0.0.1:8765](http://127.0.0.1:8765)**，在首页点击「开启新对局」，选择席位、棋局与对手后入席。未完成的故事可以从首页或「历史对局」继续。
 
 <details>
 <summary>不使用 uv 的安装方式</summary>
@@ -156,6 +161,7 @@ flowchart LR
 | 角色建模 | 角色身份、人物性格、模型调用和私人策略 | [`WerewolfDialogAgent(DialogAgent)`](werewolf/agents.py) |
 | 记忆与策略 | 全轮索引、原文回查、评估校验、投票复核、表达检查 | [`memory.py`](werewolf/memory.py) · [`strategy.py`](werewolf/strategy.py) |
 | 服务与持久化 | FastAPI、SQLite、会话隔离、并发保护、视角裁剪 | [`server.py`](werewolf/server.py) |
+| 历史与复盘 | 逐局存档、只读时间投影、接收者权限、历史账本与原文检索 | [`replay.py`](werewolf/replay.py) |
 | 网页 | 原生 HTML / CSS / JavaScript，响应式布局，无构建依赖 | [`web/`](web/) |
 
 明确固定 **AgentScope 0.1.6**，以使用真实 `DialogAgent` 与 `MsgHub`。模型请求单独适配，避免旧版全局模型管理器持有多局密钥。迁移新版框架需要调整接口，不能直接升级版本号。
@@ -165,9 +171,10 @@ flowchart LR
 ```powershell
 .venv\Scripts\python.exe -m pytest -q
 node --check web/app.js
+node --check web/product.js
 ```
 
-当前本地回归 **76 项通过**，覆盖角色技能、胜负边界、平票、40 局练习模式完整运行、20 轮记忆、消息与调试隔离、存档恢复、API 并发保护和独立投票协议。
+当前本地回归 **86 项通过**，覆盖角色技能、胜负边界、平票、40 局练习模式完整运行、20 轮记忆、消息与调试隔离、存档恢复、历史迁移、时间点权限、API 并发保护和独立投票协议。浏览器另行跑通新局至终局、历史续局、复盘回放、角色记忆检索与 JSON 导出，并检查 390px 窄屏。
 
 此前真实六人深度对局已跑完 **2 个游戏日、29 次行动**，约 **14.5 分钟 / 345,625 tokens**，没有练习机器人兜底。这是单次观测，不代表平均费用、推理正确率或胜率。最新投票复核的真实模型回归尚未完成；结构与隔离测试通过，不等同于已证明策略效果。详情见[验收报告](docs/ACCEPTANCE.md)。
 
@@ -193,6 +200,8 @@ node --check web/app.js
 
 | 文档 | 内容 |
 | :--- | :--- |
+| [产品复查与升级](docs/PRODUCT_REVIEW.md) | 首页、历史、复盘与观察室的设计和验收 |
+| [人物素材与提示词](docs/AVATAR_ASSETS.md) | 九位人物的本地资源和生成提示词 |
 | [使用指南](docs/USER_GUIDE.md) | 安装、配置、玩法、记忆、调试与复盘 |
 | [开发提示词与规则合同](docs/DEVELOPMENT_PROMPT.md) | 产品目标、规则研究与实现里程碑 |
 | [架构与实现](docs/ARCHITECTURE.md) | 消息边界、状态机、接口与扩展方式 |

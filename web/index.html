@@ -11,7 +11,9 @@
     <title>三国 · 夜议 | AI 狼人杀</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/product.css" />
     <script src="/static/app.js" defer></script>
+    <script src="/static/product.js" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -20,7 +22,9 @@
         ><span>三国 <b>·</b> 夜议<small>NIGHT COUNCIL</small></span></a
       >
       <nav aria-label="主导航">
-        <button id="nav-game" class="nav-link active">议事厅</button
+        <button id="nav-home" class="nav-link active">首页</button
+        ><button id="nav-game" class="nav-link">议事厅</button
+        ><button id="nav-history" class="nav-link">历史对局</button
         ><button id="nav-rules" class="nav-link">玩法手册</button
         ><button id="nav-settings" class="nav-link">
           <span class="settings-icon">⚙</span> 模型设置
@@ -191,7 +195,7 @@
     >
       <h2 id="confirm-title">重新入席？</h2>
       <p class="muted">
-        当前对局将被新的一局替换。你可以先下载复盘，保存已经发生的故事。
+        当前对局已自动存档。开启新局后，仍可在「历史对局」继续或复盘这场故事。
       </p>
       <div class="modal-actions">
         <button class="button secondary close-dialog">留在此局</button

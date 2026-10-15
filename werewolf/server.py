@@ -22,6 +22,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .agents import ModelConfig, ModelFailure, complete, parse_json, ROLES
 from .game import ThreeKingdomsWerewolfGame, IllegalAction
 from .memory import EvidenceMemory
+from .replay import replay_view, history_summary
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = Path(os.getenv("NIGHT_COUNCIL_DATA", ROOT / ".local"))
@@ -65,6 +66,16 @@ def db_connect():
     con.execute(
         "CREATE TABLE IF NOT EXISTS sessions (sid TEXT PRIMARY KEY, state TEXT NOT NULL, updated REAL NOT NULL)"
     )
+    con.execute(
+        "CREATE TABLE IF NOT EXISTS games (sid TEXT NOT NULL, game_id TEXT NOT NULL, "
+        "state TEXT NOT NULL, created REAL NOT NULL, updated REAL NOT NULL, PRIMARY KEY(sid,game_id))"
+    )
+    # Idempotent migration: retain the last save from pre-history installations.
+    con.execute(
+        "INSERT OR IGNORE INTO games SELECT sid,json_extract(state,'$.id'),state,updated,updated "
+        "FROM sessions WHERE json_valid(state) AND json_extract(state,'$.id') IS NOT NULL"
+    )
+    con.commit()
     return con
 
 
@@ -84,13 +95,20 @@ class Session:
     def save(self):
         if self.game:
             with db_connect() as db:
+                payload = json.dumps(self.game.snapshot(), ensure_ascii=False)
+                now = time.time()
                 db.execute(
                     "INSERT OR REPLACE INTO sessions VALUES(?,?,?)",
                     (
                         self.sid,
-                        json.dumps(self.game.snapshot(), ensure_ascii=False),
-                        time.time(),
+                        payload,
+                        now,
                     ),
+                )
+                db.execute(
+                    "INSERT INTO games VALUES(?,?,?,?,?) ON CONFLICT(sid,game_id) "
+                    "DO UPDATE SET state=excluded.state,updated=excluded.updated",
+                    (self.sid, self.game.id, payload, now, now),
                 )
 
     def effective(self, seat=None, scope=None):
@@ -233,11 +251,103 @@ def create_game(body: NewGame, request: Request):
             )
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
+        s.save()
         s.game = game
         s.save()
         return view(s)
     finally:
         s.lock.release()
+
+
+@app.get("/api/history")
+def history(request: Request):
+    s = session(request)
+    with db_connect() as db:
+        rows = db.execute(
+            "SELECT state,created,updated FROM games WHERE sid=? ORDER BY updated DESC",
+            (s.sid,),
+        ).fetchall()
+    return {
+        "games": [history_summary(json.loads(r[0]), r[1], r[2]) for r in rows],
+        "current_id": s.game.id if s.game else None,
+    }
+
+
+def archived_state(s, game_id):
+    with db_connect() as db:
+        row = db.execute(
+            "SELECT state FROM games WHERE sid=? AND game_id=?", (s.sid, game_id)
+        ).fetchone()
+    if not row:
+        raise HTTPException(404, "找不到这场对局，请检查当前浏览器的历史记录。")
+    return json.loads(row[0])
+
+
+@app.get("/api/history/{game_id}/replay")
+def replay_history(
+    game_id: str,
+    request: Request,
+    perspective: str = "public",
+    cursor: int | None = None,
+):
+    saved = archived_state(session(request), game_id)
+    try:
+        return replay_view(saved, perspective, cursor)
+    except PermissionError:
+        raise HTTPException(
+            403, "本局尚未结束，只能回看公开信息和你自己的视角。"
+        ) from None
+    except ValueError:
+        raise HTTPException(400, "复盘视角或时间点无效。") from None
+
+
+@app.post("/api/history/{game_id}/resume")
+def resume_history(game_id: str, request: Request):
+    s = session(request)
+    if not s.lock.acquire(blocking=False):
+        raise HTTPException(409, "当前行动尚未完成")
+    try:
+        saved = archived_state(s, game_id)
+        if saved.get("winner"):
+            raise HTTPException(409, "这场对局已经结束，请进入复盘。")
+        restored = ThreeKingdomsWerewolfGame.restore(saved)
+        s.save()
+        s.game = restored
+        s.save()
+        return view(s)
+    finally:
+        s.lock.release()
+
+
+@app.get("/api/history/{game_id}/memory/{actor}")
+def replay_memory(
+    game_id: str, actor: int, request: Request, cursor: int, q: str = "", day: int = 0
+):
+    saved = archived_state(session(request), game_id)
+    try:
+        projected = replay_view(saved, str(actor), cursor)
+    except PermissionError:
+        raise HTTPException(403, "本局尚未结束，不能查看其他角色的记忆。") from None
+    except ValueError:
+        raise HTTPException(400, "角色或时间点无效。") from None
+    records = projected["events"]
+    matches = [
+        e
+        for e in records
+        if (not day or e["day"] == day)
+        and (not q or q[:100].casefold() in (e["title"] + e["text"]).casefold())
+    ]
+    return {
+        "actor": actor,
+        "cursor": cursor,
+        "total": len(records),
+        "matched": len(matches),
+        "records": [
+            {"id": e["id"], "day": e["day"], "speaker": e["title"], "text": e["text"]}
+            for e in matches[:100]
+        ],
+        "limited": len(matches) > 100,
+    }
 
 
 def check_turn(s, body):

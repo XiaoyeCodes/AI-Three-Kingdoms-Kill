@@ -319,6 +319,7 @@ class ThreeKingdomsWerewolfGame:
                         "放逐结果",
                         f"{seat}号{self.player(seat)['name']}被放逐出局，获得{counts[seat]}票。",
                         kind="elimination",
+                        data={"deaths": [seat]},
                     )
                     tasks = [{"kind": "last_words", "actor": seat}]
                     if self.player(seat)["role"] == "hunter":
@@ -567,6 +568,7 @@ class ThreeKingdomsWerewolfGame:
                     "猎人开枪",
                     f"{seat}号亮出猎人身份，带走了{target}号{self.player(target)['name']}。",
                     kind="elimination",
+                    data={"deaths": [target]},
                 )
             else:
                 self.emit("猎人收枪", f"{seat}号亮出猎人身份，选择不开枪。")

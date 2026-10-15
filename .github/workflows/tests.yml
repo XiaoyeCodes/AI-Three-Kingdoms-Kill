@@ -29,4 +29,6 @@ jobs:
       - name: Test rules, isolation and decision protocols (no API calls)
         run: python -m pytest -q
       - name: Check browser JavaScript
-        run: node --check web/app.js
+        run: |
+          node --check web/app.js
+          node --check web/product.js
