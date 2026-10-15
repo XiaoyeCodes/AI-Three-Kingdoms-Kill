@@ -181,6 +181,7 @@ async function startGame() {
   busy = true;
   stopAuto();
   renderLobby();
+  let created = false;
   try {
     const result = await api("games", {
       ...lobby,
@@ -188,11 +189,13 @@ async function startGame() {
     });
     setGame(result);
     tab = "public";
+    created = true;
   } catch (error) {
     toast(error.message);
   } finally {
     busy = false;
-    showingLobby ? renderLobby() : navigate("game");
+    if (created && currentPage === "new") navigate("game");
+    else await refreshPageAfterTurn();
   }
 }
 function roleCard() {
@@ -471,7 +474,7 @@ async function step(action = null) {
   } finally {
     clearInterval(progressTimer);
     busy = false;
-    renderGame();
+    await refreshPageAfterTurn();
   }
   return ok;
 }

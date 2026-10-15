@@ -125,6 +125,20 @@ function stopReplay() {
   replayPlaying = false;
   clearTimeout(replayTimer);
 }
+async function refreshPageAfterTurn() {
+  const page = currentPage,
+    epoch = pageEpoch;
+  if (page === "new") return renderLobby();
+  if (page !== "home" && page !== "history") return renderGame();
+  try {
+    const result = await api("history");
+    if (epoch !== pageEpoch) return;
+    historyData = result.games;
+  } catch {
+    if (epoch !== pageEpoch) return;
+  }
+  page === "home" ? renderHome() : renderHistory();
+}
 async function navigate(page, id = "") {
   stopAuto();
   stopReplay();
